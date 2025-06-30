@@ -1,0 +1,10 @@
+*.bin
+*.wav
+*.mp3
+*.safetensors
+*.pt
+assets/
+models/
+generated_music/
+depracated/
+build/
