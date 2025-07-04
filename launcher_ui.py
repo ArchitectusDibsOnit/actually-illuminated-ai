@@ -1,4 +1,4 @@
-# launcher_ui.py (Visual Timeline Viewer Integrated)
+# launcher_ui.py (Frame-Slicer Real-Time Integrated)
 
 import gradio as gr
 import os
@@ -30,7 +30,6 @@ from meta_tag_soundboard import meta_tag_soundboard_ui
 from meta_tag_preview import meta_tag_preview_ui
 from lyrics_ui import lyrics_interface
 from song_structure_manager import song_structure_manager_interface
-from visual_timeline_viewer import visual_timeline_viewer_interface
 
 # ✅ System Performance Tab
 def system_performance_tab():
@@ -44,7 +43,7 @@ def system_performance_tab():
 
     return system_ui
 
-# ✅ Song Creation Wizard
+# ✅ Song Creation Wizard with Real-Time Frame-Slicer Feedback
 def song_creation_wizard():
     with gr.Blocks() as wizard_ui:
         gr.Markdown("# 🎤 Song Creation Wizard")
@@ -78,6 +77,7 @@ def song_creation_wizard():
         generate_button = gr.Button("Generate Song")
         generated_audio = gr.Audio(label="Generated Song Output", interactive=False)
 
+        # Build Full Prompt and Real-Time Generation Handler
         def build_and_generate(prompt, duration, quality, use_bark, style, voice, sfx):
             tag_string = " ".join(style + voice + sfx)
             full_prompt = f"{tag_string}\n{prompt}"
@@ -85,16 +85,30 @@ def song_creation_wizard():
 
             if duration > recommended_max:
                 eta = estimate_eta(duration, recommended_max)
-                slice_notice.value = f"[⚙️] Auto frame-slicing enabled. ETA: {eta}s."
-                return frame_sliced_generate(full_prompt, duration, quality)
+                yield gr.update(value=f"[⚙️] Auto frame-slicing enabled. ETA: {eta}s."), None
+
+                status_list = []
+
+                def progress_callback(status_text):
+                    status_list.append(status_text)
+                    yield gr.update(value="\n".join(status_list)), None
+
+                audio_path = frame_sliced_generate(full_prompt, duration, quality, progress_callback=progress_callback)
             else:
-                slice_notice.value = f"[✔] No slicing required. Generating normally."
-                return generate_music(full_prompt, duration, quality)
+                yield gr.update(value=f"[✔] No slicing required. Generating normally..."), None
+                audio_path = generate_music(full_prompt, duration, quality)
+
+            if audio_path:
+                yield gr.update(value=f"[✔] Generation complete!"), audio_path
+            else:
+                yield gr.update(value=f"[❌] Generation failed."), None
 
         generate_button.click(
             fn=build_and_generate,
             inputs=[song_prompt, duration, quality, use_bark, style_tags, voice_tags, music_sfx_tags],
-            outputs=generated_audio
+            outputs=[slice_notice, generated_audio],
+            api_name="generate_song",
+            show_progress=True
         )
 
         model_selector.change(fn=switch_music_model, inputs=model_selector, outputs=None)
@@ -167,9 +181,6 @@ with gr.Blocks(title="Actually Illuminated AI Launcher", theme=gr.themes.Default
 
                     with gr.TabItem("Song Creation Wizard"):
                         song_creation_wizard()
-
-                    with gr.TabItem("Visual Timeline Viewer"):
-                        visual_timeline_viewer_interface()
 
                     with gr.TabItem("System Performance"):
                         system_performance_tab()
