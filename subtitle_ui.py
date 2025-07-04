@@ -9,7 +9,7 @@ def subtitle_interface():
         gr.Markdown("## 📝 Subtitle Manager + Phoneme Generator")
 
         with gr.Row():
-            audio_input = gr.Audio(source="upload", type="filepath", label="Upload Audio File")
+            audio_input = gr.Audio(type="filepath", label="Upload Audio File")
 
         transcribed_output = gr.Textbox(label="Transcribed Subtitles", lines=6)
 

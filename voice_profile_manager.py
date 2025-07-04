@@ -2,90 +2,73 @@
 
 import json
 import os
+import gradio as gr
 
-voice_profiles_file = "voice_profiles.json"
+VOICE_PROFILE_FILE = "voice_profiles.json"
 
-# Load existing profiles or create a new file
 def load_voice_profiles():
-    if os.path.exists(voice_profiles_file):
-        with open(voice_profiles_file, "r") as file:
-            return json.load(file)
+    if os.path.exists(VOICE_PROFILE_FILE):
+        with open(VOICE_PROFILE_FILE, 'r') as f:
+            return json.load(f)
     else:
         return {}
 
 def save_voice_profiles(profiles):
-    with open(voice_profiles_file, "w") as file:
-        json.dump(profiles, file, indent=4)
+    with open(VOICE_PROFILE_FILE, 'w') as f:
+        json.dump(profiles, f, indent=4)
 
-# Gradio Interface
+def get_available_voice_profiles():
+    profiles = load_voice_profiles()
+    return list(profiles.keys()) if profiles else ["No profiles available"]
+
 def voice_profile_manager_interface():
-    import gradio as gr
-
     profiles = load_voice_profiles()
 
-    profile_names = list(profiles.keys())
+    profile_name = gr.Textbox(label="Voice Profile Name")
+    profile_description = gr.Textbox(label="Description")
+    profile_tag = gr.Textbox(label="Meta-Tag for Voice", placeholder="[male], [robotic], [alien]")
 
-    def create_profile(name, description, voice_type, linked_phoneme_bank):
-        profiles[name] = {
-            "description": description,
-            "voice_type": voice_type,
-            "phoneme_bank": linked_phoneme_bank
-        }
+    profile_dropdown = gr.Dropdown(choices=list(profiles.keys()), label="Existing Profiles", multiselect=False)
+    profile_output = gr.Textbox(label="Selected Profile Details", interactive=False)
+    status = gr.Textbox(label="Status", interactive=False)
+
+    add_button = gr.Button("➕ Add Voice Profile")
+    delete_button = gr.Button("🗑️ Delete Selected Profile")
+
+    def add_profile(name, description, tag):
+        if not name.strip() or not tag.strip():
+            return gr.update(choices=list(profiles.keys())), "Name and meta-tag are required."
+
+        profiles[name] = {"description": description, "tag": tag}
         save_voice_profiles(profiles)
-        return gr.update(choices=list(profiles.keys())), f"Profile '{name}' created."
+        return gr.update(choices=list(profiles.keys())), f"Profile '{name}' added."
 
     def delete_profile(name):
         if name in profiles:
             del profiles[name]
             save_voice_profiles(profiles)
             return gr.update(choices=list(profiles.keys())), f"Profile '{name}' deleted."
-        else:
-            return gr.update(), "Profile not found."
+        return gr.update(), "Profile not found."
 
-    def view_profile(name):
+    def show_profile(name):
         if name in profiles:
-            profile = profiles[name]
-            return f"Name: {name}\nDescription: {profile['description']}\nVoice Type: {profile['voice_type']}\nPhoneme Bank: {profile['phoneme_bank']}"
-        else:
-            return "Profile not found."
+            desc = profiles[name]["description"]
+            tag = profiles[name]["tag"]
+            return f"Name: {name}\nDescription: {desc}\nMeta-Tag: {tag}"
+        return "Profile not found."
 
-    with gr.Blocks() as voice_profile_ui:
-        gr.Markdown("## 🎤 Voice Profile Manager")
+    add_button.click(add_profile, [profile_name, profile_description, profile_tag], [profile_dropdown, status])
+    delete_button.click(delete_profile, profile_dropdown, [profile_dropdown, status])
+    profile_dropdown.change(show_profile, profile_dropdown, profile_output)
 
-        with gr.Row():
-            voice_name_input = gr.Textbox(label="Voice Name")
-            voice_description_input = gr.Textbox(label="Voice Description")
-            voice_type_selector = gr.Dropdown(choices=["Bark", "Phoneme", "External Sample"], label="Voice Type")
-            phoneme_bank_input = gr.Textbox(label="Linked Phoneme Bank")
-
-        create_button = gr.Button("Create Voice Profile")
-
-        profile_selector = gr.Dropdown(choices=profile_names, label="Select Voice Profile")
-        delete_button = gr.Button("Delete Selected Profile")
-        view_button = gr.Button("View Selected Profile")
-
-        profile_view = gr.Textbox(label="Voice Profile Details", lines=6, interactive=False)
-
-        create_button.click(
-            create_profile,
-            inputs=[voice_name_input, voice_description_input, voice_type_selector, phoneme_bank_input],
-            outputs=[profile_selector, profile_view]
-        )
-
-        delete_button.click(
-            delete_profile,
-            inputs=[profile_selector],
-            outputs=[profile_selector, profile_view]
-        )
-
-        view_button.click(
-            view_profile,
-            inputs=[profile_selector],
-            outputs=profile_view
-        )
-
-    return voice_profile_ui
-
-# 🔗 Utility to retrieve current voice names for timeline controller
-def get_available_voice_profiles():
-    return list(load_voice_profiles().keys())
+    return gr.Column([
+        gr.Markdown("## 🎤 Voice Profile Manager - Create, View, and Delete Profiles"),
+        profile_name,
+        profile_description,
+        profile_tag,
+        add_button,
+        profile_dropdown,
+        profile_output,
+        delete_button,
+        status
+    ])

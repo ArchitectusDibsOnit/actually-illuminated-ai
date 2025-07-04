@@ -9,6 +9,7 @@ from phoneme_and_meta_tag_utils import extract_meta_tags_from_prompt
 output_directory = "generated_music"
 os.makedirs(output_directory, exist_ok=True)
 
+# Load default model
 current_model = MusicGen.get_pretrained("facebook/musicgen-small")
 
 def switch_music_model(model_name):
@@ -18,13 +19,17 @@ def switch_music_model(model_name):
     print(f"[✔] Model switched to {model_name}")
 
 def generate_music(prompt, duration, quality):
-    print(f"[🎵] Generating music with prompt: '{prompt}' | Duration: {duration}s | Quality: {quality}")
+    print(f"[🎵] Generating music with prompt: '{prompt}' | Quality: {quality}")
 
-    # Generate audio
-    wav = current_model.generate([prompt], progress=True, duration=duration)
+    # Generate audio (duration argument removed)
+    wav = current_model.generate([prompt], progress=True)
 
-    # Extract song name
-    song_name = extract_meta_tags_from_prompt(prompt).get('song_name', 'generated_song')
+    # Extract song name or fallback
+    song_name = extract_meta_tags_from_prompt(prompt)
+    if isinstance(song_name, dict):
+        song_name = song_name.get('song_name', 'generated_song')
+    else:
+        song_name = 'generated_song'
 
     # Save audio file
     audio_path = os.path.join(output_directory, f"{song_name}.wav")

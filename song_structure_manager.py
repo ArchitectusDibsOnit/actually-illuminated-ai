@@ -14,12 +14,20 @@ timeline = []
 
 def add_event(event_tag, start_time, end_time):
     timeline.append({"tag": event_tag, "start": start_time, "end": end_time})
-    return f"Added: {event_tag} from {start_time}s to {end_time}s"
+    return display_timeline()
+
 
 
 def clear_timeline():
     timeline.clear()
-    return "Timeline cleared."
+    return display_timeline()
+
+
+
+def display_timeline():
+    if not timeline:
+        return "Timeline is empty."
+    return "\n".join([f"{event['tag']} from {event['start']}s to {event['end']}s" for event in timeline])
 
 
 
@@ -28,7 +36,8 @@ def song_structure_manager_interface():
         gr.Markdown("## 🎵 Song Structure Manager - Tag & Timeline Editor")
 
         with gr.Row():
-            tag_selector = gr.Dropdown(choices=SONG_STRUCTURE_TAGS, label="Select Song Section Tag")
+            tag_selector = gr.Dropdown(choices=SONG_STRUCTURE_TAGS, label="Select Song Section Tag", interactive=True)
+            custom_tag_input = gr.Textbox(label="Or Enter Custom Tag")
             start_input = gr.Number(label="Start Time (s)", value=0)
             end_input = gr.Number(label="End Time (s)", value=10)
 
@@ -37,15 +46,14 @@ def song_structure_manager_interface():
 
         timeline_display = gr.Textbox(label="Song Timeline", lines=10, interactive=False)
 
-        def display_timeline():
-            if not timeline:
-                return "Timeline is empty."
-            return "\n".join([f"{event['tag']} from {event['start']}s to {event['end']}s" for event in timeline])
+        def add_timeline_event(tag, custom_tag, start, end):
+            final_tag = custom_tag.strip() if custom_tag.strip() else tag
+            if final_tag not in SONG_STRUCTURE_TAGS:
+                SONG_STRUCTURE_TAGS.append(final_tag)
+            return add_event(final_tag, start, end)
 
-        add_button.click(lambda tag, start, end: add_event(tag, start, end),
-                         [tag_selector, start_input, end_input], timeline_display.update)
-
-        clear_button.click(lambda: clear_timeline(), None, timeline_display.update)
+        add_button.click(add_timeline_event, [tag_selector, custom_tag_input, start_input, end_input], timeline_display)
+        clear_button.click(lambda: clear_timeline(), None, timeline_display)
 
         timeline_display.value = display_timeline()
 
