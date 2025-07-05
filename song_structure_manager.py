@@ -1,6 +1,7 @@
-# 🎼 song_structure_manager.py
+# 🎼 song_structure_manager.py (Visual Timeline & Cascade Sync)
 
 import gradio as gr
+from voice_timeline_sync_engine import clear_voice_timeline
 
 # Predefined song structure tags
 SONG_STRUCTURE_TAGS = [
@@ -17,18 +18,19 @@ def add_event(event_tag, start_time, end_time):
     return display_timeline()
 
 
-
 def clear_timeline():
     timeline.clear()
+    clear_voice_timeline()  # Cascade: Clear voice timeline when song timeline is cleared
     return display_timeline()
-
 
 
 def display_timeline():
     if not timeline:
         return "Timeline is empty."
-    return "\n".join([f"{event['tag']} from {event['start']}s to {event['end']}s" for event in timeline])
-
+    visual = "🕰️ Song Timeline:\n\n"
+    for idx, event in enumerate(timeline, 1):
+        visual += f"{idx}. {event['tag']} from {event['start']}s to {event['end']}s\n"
+    return visual
 
 
 def song_structure_manager_interface():
@@ -44,7 +46,8 @@ def song_structure_manager_interface():
         add_button = gr.Button("Add Event to Timeline")
         clear_button = gr.Button("Clear Timeline")
 
-        timeline_display = gr.Textbox(label="Song Timeline", lines=10, interactive=False)
+        timeline_display = gr.Textbox(label="Song Timeline", lines=15, interactive=False)
+        cascade_status = gr.Textbox(label="Cascade Sync Status", interactive=False)
 
         def add_timeline_event(tag, custom_tag, start, end):
             final_tag = custom_tag.strip() if custom_tag.strip() else tag
@@ -52,12 +55,13 @@ def song_structure_manager_interface():
                 SONG_STRUCTURE_TAGS.append(final_tag)
             return add_event(final_tag, start, end)
 
+        def clear_with_cascade():
+            cascade_status.value = "✅ Voice timeline also cleared due to song structure reset."
+            return clear_timeline()
+
         add_button.click(add_timeline_event, [tag_selector, custom_tag_input, start_input, end_input], timeline_display)
-        clear_button.click(lambda: clear_timeline(), None, timeline_display)
+        clear_button.click(clear_with_cascade, None, timeline_display)
 
         timeline_display.value = display_timeline()
 
     return song_structure_ui
-
-
-# 🔥 Next Step: Build the Voice Onset/Offset Editor + Integration with this timeline

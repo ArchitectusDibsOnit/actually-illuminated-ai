@@ -1,74 +1,70 @@
 # voice_profile_manager.py
 
+import gradio as gr
 import json
 import os
-import gradio as gr
 
 VOICE_PROFILE_FILE = "voice_profiles.json"
 
 def load_voice_profiles():
     if os.path.exists(VOICE_PROFILE_FILE):
-        with open(VOICE_PROFILE_FILE, 'r') as f:
-            return json.load(f)
-    else:
-        return {}
+        with open(VOICE_PROFILE_FILE, "r") as file:
+            return json.load(file)
+    return {}
 
 def save_voice_profiles(profiles):
-    with open(VOICE_PROFILE_FILE, 'w') as f:
-        json.dump(profiles, f, indent=4)
+    with open(VOICE_PROFILE_FILE, "w") as file:
+        json.dump(profiles, file, indent=4)
 
 def get_available_voice_profiles():
     profiles = load_voice_profiles()
-    return list(profiles.keys()) if profiles else ["No profiles available"]
+    return list(profiles.keys()) if profiles else ["No profiles — create one!"]
 
 def voice_profile_manager_interface():
     profiles = load_voice_profiles()
 
-    profile_name = gr.Textbox(label="Voice Profile Name")
-    profile_description = gr.Textbox(label="Description")
-    profile_tag = gr.Textbox(label="Meta-Tag for Voice", placeholder="[male], [robotic], [alien]")
+    with gr.Blocks() as profile_ui:
+        gr.Markdown("## 🎤 Voice Profile Manager")
 
-    profile_dropdown = gr.Dropdown(choices=list(profiles.keys()), label="Existing Profiles", multiselect=False)
-    profile_output = gr.Textbox(label="Selected Profile Details", interactive=False)
-    status = gr.Textbox(label="Status", interactive=False)
+        profile_selector = gr.Dropdown(choices=get_available_voice_profiles(), label="Select Voice Profile", interactive=True)
+        profile_display = gr.Textbox(label="Voice Profile Details", interactive=False)
 
-    add_button = gr.Button("➕ Add Voice Profile")
-    delete_button = gr.Button("🗑️ Delete Selected Profile")
+        new_profile_name = gr.Textbox(label="New Voice Profile Name")
+        new_profile_data = gr.Textbox(label="Voice Profile Data (JSON)")
 
-    def add_profile(name, description, tag):
-        if not name.strip() or not tag.strip():
-            return gr.update(choices=list(profiles.keys())), "Name and meta-tag are required."
+        save_button = gr.Button("💾 Save New Profile")
+        delete_button = gr.Button("🗑️ Delete Selected Profile")
 
-        profiles[name] = {"description": description, "tag": tag}
-        save_voice_profiles(profiles)
-        return gr.update(choices=list(profiles.keys())), f"Profile '{name}' added."
+        status_output = gr.Textbox(label="Status", interactive=False)
 
-    def delete_profile(name):
-        if name in profiles:
-            del profiles[name]
+        def save_new_profile(name, data):
+            if not name.strip() or not data.strip():
+                return gr.update(), "Profile name and data are required."
+
+            try:
+                parsed_data = json.loads(data)
+            except json.JSONDecodeError:
+                return gr.update(), "Invalid JSON format."
+
+            profiles[name] = parsed_data
             save_voice_profiles(profiles)
-            return gr.update(choices=list(profiles.keys())), f"Profile '{name}' deleted."
-        return gr.update(), "Profile not found."
+            return gr.update(choices=get_available_voice_profiles()), f"Profile '{name}' saved successfully."
 
-    def show_profile(name):
-        if name in profiles:
-            desc = profiles[name]["description"]
-            tag = profiles[name]["tag"]
-            return f"Name: {name}\nDescription: {desc}\nMeta-Tag: {tag}"
-        return "Profile not found."
+        def show_profile(name):
+            if name == "No profiles — create one!":
+                return "No profiles found. Please create one."
+            return json.dumps(profiles.get(name, {}), indent=4)
 
-    add_button.click(add_profile, [profile_name, profile_description, profile_tag], [profile_dropdown, status])
-    delete_button.click(delete_profile, profile_dropdown, [profile_dropdown, status])
-    profile_dropdown.change(show_profile, profile_dropdown, profile_output)
+        def delete_profile(name):
+            if name in profiles:
+                del profiles[name]
+                save_voice_profiles(profiles)
+                updated_profiles = get_available_voice_profiles()
+                return gr.update(choices=updated_profiles), "Profile deleted."
+            return gr.update(), "Profile not found."
 
-    return gr.Column([
-        gr.Markdown("## 🎤 Voice Profile Manager - Create, View, and Delete Profiles"),
-        profile_name,
-        profile_description,
-        profile_tag,
-        add_button,
-        profile_dropdown,
-        profile_output,
-        delete_button,
-        status
-    ])
+        save_button.click(save_new_profile, [new_profile_name, new_profile_data], [profile_selector, status_output])
+        profile_selector.change(show_profile, profile_selector, profile_display)
+        delete_button.click(delete_profile, profile_selector, [profile_selector, status_output])
+
+    return profile_ui

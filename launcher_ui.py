@@ -1,4 +1,4 @@
-# launcher_ui.py (Frame-Slicer Real-Time Integrated)
+# launcher_ui.py (Robust Error Handling & Feedback Integrated)
 
 import gradio as gr
 import os
@@ -43,7 +43,7 @@ def system_performance_tab():
 
     return system_ui
 
-# ✅ Song Creation Wizard with Real-Time Frame-Slicer Feedback
+# ✅ Song Creation Wizard (Error Handling Added)
 def song_creation_wizard():
     with gr.Blocks() as wizard_ui:
         gr.Markdown("# 🎤 Song Creation Wizard")
@@ -74,41 +74,33 @@ def song_creation_wizard():
             music_sfx_tags = gr.Dropdown(choices=get_tags("instruments") + get_tags("sfx"), multiselect=True, label="Select Music/SFX/Glyph Tags", interactive=True)
 
         slice_notice = gr.Textbox(label="Frame Slicer Status", interactive=False)
-        generate_button = gr.Button("Generate Song")
+        status_output = gr.Textbox(label="Status / Errors", interactive=False)
+
+        generate_button = gr.Button("🎶 Generate Song")
         generated_audio = gr.Audio(label="Generated Song Output", interactive=False)
 
-        # Build Full Prompt and Real-Time Generation Handler
-        def build_and_generate(prompt, duration, quality, use_bark, style, voice, sfx):
+        # Build Full Prompt and Safely Generate
+        def build_and_generate_safe(prompt, duration, quality, use_bark, style, voice, sfx):
             tag_string = " ".join(style + voice + sfx)
             full_prompt = f"{tag_string}\n{prompt}"
             recommended_max = recommend_max_frame()
 
-            if duration > recommended_max:
-                eta = estimate_eta(duration, recommended_max)
-                yield gr.update(value=f"[⚙️] Auto frame-slicing enabled. ETA: {eta}s."), None
-
-                status_list = []
-
-                def progress_callback(status_text):
-                    status_list.append(status_text)
-                    yield gr.update(value="\n".join(status_list)), None
-
-                audio_path = frame_sliced_generate(full_prompt, duration, quality, progress_callback=progress_callback)
-            else:
-                yield gr.update(value=f"[✔] No slicing required. Generating normally..."), None
-                audio_path = generate_music(full_prompt, duration, quality)
-
-            if audio_path:
-                yield gr.update(value=f"[✔] Generation complete!"), audio_path
-            else:
-                yield gr.update(value=f"[❌] Generation failed."), None
+            try:
+                if duration > recommended_max:
+                    eta = estimate_eta(duration, recommended_max)
+                    slice_notice.value = f"[⚙️] Auto frame-slicing enabled. ETA: {eta}s."
+                    result = frame_sliced_generate(full_prompt, duration, quality)
+                else:
+                    slice_notice.value = f"[✔] No slicing required. Generating normally."
+                    result = generate_music(full_prompt, duration, quality)
+                return result, "✅ Song generated successfully!"
+            except Exception as e:
+                return None, f"❌ Error: {str(e)}"
 
         generate_button.click(
-            fn=build_and_generate,
+            fn=build_and_generate_safe,
             inputs=[song_prompt, duration, quality, use_bark, style_tags, voice_tags, music_sfx_tags],
-            outputs=[slice_notice, generated_audio],
-            api_name="generate_song",
-            show_progress=True
+            outputs=[generated_audio, status_output]
         )
 
         model_selector.change(fn=switch_music_model, inputs=model_selector, outputs=None)
