@@ -1,12 +1,12 @@
-# launcher_ui.py (Robust Error Handling & Feedback Integrated)
+# launcher_ui.py (Voice Profile Integrated - Fixed)
 
 import gradio as gr
 import os
 
 from audio_utils import save_audio, load_audio, normalize_audio, pitch_shift, time_stretch, apply_reverb
 from phoneme_and_meta_tag_utils import (
-    phoneme_editor_interface, voice_morpher_interface, get_all_meta_tags, meta_tags,
-    load_phoneme_profiles, text_to_phonemes, get_tags
+    voice_morpher_interface, get_all_meta_tags, meta_tags,
+    load_phoneme_profiles, text_to_phonemes, get_tags, add_custom_tag
 )
 from glyph_handler import load_glyphs, display_glyphs
 from playback_emulator import playback_emulator_interface
@@ -22,7 +22,7 @@ from music_generation_engine import switch_music_model, generate_music
 from frame_slicer import frame_sliced_generate
 from system_performance import recommend_max_frame, estimate_eta, system_summary, benchmark_system_speed
 from bark_integration import generate_bark_audio
-from voice_profile_manager import voice_profile_manager_interface, get_available_voice_profiles
+from voice_profile_manager import voice_profile_manager_interface, get_available_voice_profiles, load_voice_profiles
 from voice_timeline_sync_engine import voice_timeline_sync_interface
 from phoneme_mixer_engine import phoneme_replacement_interface
 from multi_voice_mixer import multi_voice_mixer_interface
@@ -31,19 +31,7 @@ from meta_tag_preview import meta_tag_preview_ui
 from lyrics_ui import lyrics_interface
 from song_structure_manager import song_structure_manager_interface
 
-# ✅ System Performance Tab
-def system_performance_tab():
-    with gr.Blocks() as system_ui:
-        gr.Markdown("## 🖥️ System Performance & Benchmark")
-        system_info = gr.Textbox(label="System Summary", value=system_summary(), interactive=False)
-        benchmark_output = gr.Textbox(label="Benchmark Result", interactive=False)
-        benchmark_button = gr.Button("Run Performance Benchmark")
-
-        benchmark_button.click(fn=benchmark_system_speed, inputs=None, outputs=benchmark_output)
-
-    return system_ui
-
-# ✅ Song Creation Wizard (Error Handling Added)
+# ✅ Song Creation Wizard with Voice Profile Integration
 def song_creation_wizard():
     with gr.Blocks() as wizard_ui:
         gr.Markdown("# 🎤 Song Creation Wizard")
@@ -57,7 +45,18 @@ def song_creation_wizard():
             song_prompt = gr.Textbox(label="Enter Song Prompt with Meta-Tags", lines=4)
 
         with gr.Row():
-            selected_voice_profile = gr.Dropdown(choices=get_available_voice_profiles(), label="Select Voice Profile")
+            voice_profiles = get_available_voice_profiles()
+            selected_voice_profile = gr.Dropdown(choices=voice_profiles, label="Select Voice Profile", interactive=True)
+            voice_profile_display = gr.Textbox(label="Voice Profile Details", interactive=False)
+
+        def load_selected_profile(profile_name):
+            profiles = load_voice_profiles()
+            if profile_name in profiles:
+                p = profiles[profile_name]
+                return f"Phoneme Style: {p['phoneme_style']}\nPitch: {p['pitch']}\nMeta-Tags: {p['meta_tags']}"
+            return "No profile selected or profile not found."
+
+        selected_voice_profile.change(load_selected_profile, selected_voice_profile, voice_profile_display)
 
         with gr.Row():
             duration = gr.Number(label="Song Duration (seconds)", value=10)
@@ -74,39 +73,47 @@ def song_creation_wizard():
             music_sfx_tags = gr.Dropdown(choices=get_tags("instruments") + get_tags("sfx"), multiselect=True, label="Select Music/SFX/Glyph Tags", interactive=True)
 
         slice_notice = gr.Textbox(label="Frame Slicer Status", interactive=False)
-        status_output = gr.Textbox(label="Status / Errors", interactive=False)
-
-        generate_button = gr.Button("🎶 Generate Song")
+        generate_button = gr.Button("Generate Song")
         generated_audio = gr.Audio(label="Generated Song Output", interactive=False)
 
-        # Build Full Prompt and Safely Generate
-        def build_and_generate_safe(prompt, duration, quality, use_bark, style, voice, sfx):
+        def build_and_generate(prompt, duration, quality, use_bark, style, voice, sfx, selected_profile):
+            if not selected_profile:
+                return "No voice profile selected. Please create one in the Voice Profile Manager.", None
+
             tag_string = " ".join(style + voice + sfx)
             full_prompt = f"{tag_string}\n{prompt}"
             recommended_max = recommend_max_frame()
 
-            try:
-                if duration > recommended_max:
-                    eta = estimate_eta(duration, recommended_max)
-                    slice_notice.value = f"[⚙️] Auto frame-slicing enabled. ETA: {eta}s."
-                    result = frame_sliced_generate(full_prompt, duration, quality)
-                else:
-                    slice_notice.value = f"[✔] No slicing required. Generating normally."
-                    result = generate_music(full_prompt, duration, quality)
-                return result, "✅ Song generated successfully!"
-            except Exception as e:
-                return None, f"❌ Error: {str(e)}"
+            if duration > recommended_max:
+                eta = estimate_eta(duration, recommended_max)
+                slice_notice.value = f"[⚙️] Auto frame-slicing enabled. ETA: {eta}s."
+                return frame_sliced_generate(full_prompt, duration, quality)
+            else:
+                slice_notice.value = f"[✔] No slicing required. Generating normally."
+                return generate_music(full_prompt, duration, quality)
 
         generate_button.click(
-            fn=build_and_generate_safe,
-            inputs=[song_prompt, duration, quality, use_bark, style_tags, voice_tags, music_sfx_tags],
-            outputs=[generated_audio, status_output]
+            fn=build_and_generate,
+            inputs=[song_prompt, duration, quality, use_bark, style_tags, voice_tags, music_sfx_tags, selected_voice_profile],
+            outputs=generated_audio
         )
 
         model_selector.change(fn=switch_music_model, inputs=model_selector, outputs=None)
         model_selector.change(lambda m: f"{m} loaded.", inputs=model_selector, outputs=model_status)
 
     return wizard_ui
+
+# ✅ System Performance Tab
+def system_performance_tab():
+    with gr.Blocks() as system_ui:
+        gr.Markdown("## 🖥️ System Performance & Benchmark")
+        system_info = gr.Textbox(label="System Summary", value=system_summary(), interactive=False)
+        benchmark_output = gr.Textbox(label="Benchmark Result", interactive=False)
+        benchmark_button = gr.Button("Run Performance Benchmark")
+
+        benchmark_button.click(fn=benchmark_system_speed, inputs=None, outputs=benchmark_output)
+
+    return system_ui
 
 # Launcher Core
 with gr.Blocks(title="Actually Illuminated AI Launcher", theme=gr.themes.Default(primary_hue="slate", secondary_hue="violet")) as launcher_ui:
@@ -117,12 +124,6 @@ with gr.Blocks(title="Actually Illuminated AI Launcher", theme=gr.themes.Default
         with gr.Row():
             with gr.Column():
                 with gr.Tabs():
-                    with gr.TabItem("Glyphscribe"):
-                        glyphscribe_interface()
-
-                    with gr.TabItem("Phoneme Editor"):
-                        phoneme_editor_interface()
-
                     with gr.TabItem("Voice Morpher"):
                         voice_morpher_interface()
 
@@ -177,18 +178,18 @@ with gr.Blocks(title="Actually Illuminated AI Launcher", theme=gr.themes.Default
                     with gr.TabItem("System Performance"):
                         system_performance_tab()
 
-        with gr.Row():
-            gr.Markdown("## 📚 Meta-Tags Reference")
-            gr.Markdown(f"{get_all_meta_tags()}")
+    with gr.Row():
+        gr.Markdown("## 📚 Meta-Tags Reference")
+        gr.Markdown(f"{get_all_meta_tags()}")
 
-        with gr.Row():
-            gr.Markdown("## 🗂️ Glyph Browser")
-            glyph_display = gr.Textbox(label="Available Glyphs", interactive=False)
-            glyph_display.value = display_glyphs()
+    with gr.Row():
+        gr.Markdown("## 🗂️ Glyph Browser")
+        glyph_display = gr.Textbox(label="Available Glyphs", interactive=False)
+        glyph_display.value = display_glyphs()
 
-        with gr.Row():
-            gr.Markdown("## ⚙️ System Status")
-            gr.Markdown("- All Modules Online ✅")
+    with gr.Row():
+        gr.Markdown("## ⚙️ System Status")
+        gr.Markdown("- All Modules Online ✅")
 
     launcher_ui.launch(server_name="127.0.0.1", server_port=7861, share=False, inbrowser=True)
 
