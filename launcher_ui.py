@@ -1,12 +1,11 @@
-# launcher_ui.py (Voice Profile Integrated - Fixed)
+# launcher_ui.py (Updated with Correct Imports)
 
 import gradio as gr
 import os
 
 from audio_utils import save_audio, load_audio, normalize_audio, pitch_shift, time_stretch, apply_reverb
 from phoneme_and_meta_tag_utils import (
-    voice_morpher_interface, get_all_meta_tags, meta_tags,
-    load_phoneme_profiles, text_to_phonemes, get_tags, add_custom_tag
+    get_all_meta_tags, meta_tags, get_tags
 )
 from glyph_handler import load_glyphs, display_glyphs
 from playback_emulator import playback_emulator_interface
@@ -30,6 +29,8 @@ from meta_tag_soundboard import meta_tag_soundboard_ui
 from meta_tag_preview import meta_tag_preview_ui
 from lyrics_ui import lyrics_interface
 from song_structure_manager import song_structure_manager_interface
+from phoneme_editor import phoneme_editor_interface
+from voice_morpher import voice_morpher_interface
 
 # ✅ Song Creation Wizard with Voice Profile Integration
 def song_creation_wizard():
@@ -124,6 +125,12 @@ with gr.Blocks(title="Actually Illuminated AI Launcher", theme=gr.themes.Default
         with gr.Row():
             with gr.Column():
                 with gr.Tabs():
+                    with gr.TabItem("Glyphscribe"):
+                        glyphscribe_interface()
+
+                    with gr.TabItem("Phoneme Editor"):
+                        phoneme_editor_interface()
+
                     with gr.TabItem("Voice Morpher"):
                         voice_morpher_interface()
 
