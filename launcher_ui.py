@@ -1,17 +1,16 @@
-# launcher_ui.py (Updated with Correct Imports)
+# launcher_ui.py (MAXED OUT GlyphClippy: Animated, TTS, Suggestion-Aware, Emotive AI Assistant)
 
 import gradio as gr
 import os
+import pyttsx3
+import random
 
 from audio_utils import save_audio, load_audio, normalize_audio, pitch_shift, time_stretch, apply_reverb
-from phoneme_and_meta_tag_utils import (
-    get_all_meta_tags, meta_tags, get_tags
-)
-from glyph_handler import load_glyphs, display_glyphs
+from phoneme_and_meta_tag_utils import get_all_meta_tags, meta_tags, get_tags
+from glyph_handler import display_glyphs
 from playback_emulator import playback_emulator_interface
 from phoneme_sound_manager import phoneme_sound_manager_interface
-from subtitle_manager import transcribe_audio, save_subtitles, get_subtitles, auto_generate_phonemes
-from subtitle_ui import subtitle_interface
+from subtitle_manager import subtitle_interface
 from memory_core import memory_core_interface
 from user_meta_tag_builder import user_meta_tag_builder_interface
 from voice_timeline_editor import voice_timeline_editor_interface
@@ -29,175 +28,135 @@ from meta_tag_soundboard import meta_tag_soundboard_ui
 from meta_tag_preview import meta_tag_preview_ui
 from lyrics_ui import lyrics_interface
 from song_structure_manager import song_structure_manager_interface
+from async_utils import async_wrapper
 from phoneme_editor import phoneme_editor_interface
-from voice_morpher import voice_morpher_interface
+from timeline_visualizer import timeline_visualizer_interface
+from glyphclippy_engine import GlyphClippy
 
-# ✅ Song Creation Wizard with Voice Profile Integration
-def song_creation_wizard():
-    with gr.Blocks() as wizard_ui:
-        gr.Markdown("# 🎤 Song Creation Wizard")
+# Voice setup
+engine = pyttsx3.init()
+voices = engine.getProperty('voices')
+clippy_voices = {
+    "Narrator": voices[0].id if voices else None,
+    "Meme Lord": voices[-1].id if voices else None,
+    "Default": None
+}
+def speak(text, voice_mode="Default"):
+    try:
+        if clippy_voices.get(voice_mode):
+            engine.setProperty('voice', clippy_voices[voice_mode])
+        engine.say(text)
+        engine.runAndWait()
+    except Exception as e:
+        print(f"[TTS ERROR]: {e}")
 
-        mode_selector = gr.Radio(choices=["Simple", "Advanced"], label="Select Mode", value="Simple")
+# Preemptive tab suggestion logic
+context_suggestions = {
+    "Song Creation Wizard": "Want help building a meta-tag stack?",
+    "Voice Profile Manager": "Need a walkthrough on voice cloning?",
+    "Meta-Tag Builder": "Want to auto-generate a tag chain from lyrics?",
+    "Lyrics Tool": "Need cipher tricks or hidden acrostics?",
+    "Benchmark & Stats": "Curious how to optimize your latency or GPU usage?"
+}
 
+# 🔥 Floating Clippy Modal with Emotes, Voice, Suggestions
+
+def floating_glyphclippy_box():
+    with gr.Box(elem_id="glyph-clippy-box"):
+        clippy_img = gr.Image(value="assets/glyphclippy_idle.png", show_label=False, interactive=True)
+
+    with gr.Box(visible=False, elem_id="clippy-modal") as clippy_modal:
+        gr.Markdown('<span id="clippy-close">\u2716</span>', elem_id=None)
+        active_tab = gr.Textbox(value="Song Creation Wizard", visible=False)
+        voice_select = gr.Radio(["Default", "Narrator", "Meme Lord"], value="Default", label="🗣️ Voice Mode")
+
+        clippy_chat = gr.Textbox(placeholder="Ask GlyphClippy something...", label="Chat")
+        clippy_button = gr.Button("Ask")
+        clippy_output = gr.Textbox(label="Clippy Responds", lines=4, interactive=False)
+        clippy_memory = gr.Textbox(label="Memory", lines=3, interactive=False)
+        clear_mem = gr.Button("Clear Memory")
+        suggestion_button = gr.Button("Suggest Prompt from Current Tab 🧠")
+
+        def clippy_talk(input_text, context, mode):
+            reply = GlyphClippy.chat(f"[{context}] {input_text}")
+            memory = GlyphClippy.get_memory()
+            speak(reply, mode)
+            return reply, memory
+
+        def suggest_from_tab(context):
+            suggestion = context_suggestions.get(context, "I'm not sure what to suggest here, but ask me anything!")
+            return suggestion
+
+        clippy_button.click(clippy_talk, [clippy_chat, active_tab, voice_select], [clippy_output, clippy_memory])
+        suggestion_button.click(suggest_from_tab, active_tab, clippy_output)
+        clear_mem.click(lambda: GlyphClippy.clear_memory() or ("Memory cleared.", ""), None, [clippy_output, clippy_memory])
+
+    gr.HTML("""
+    <script>
+    const clippy = document.getElementById("glyph-clippy-box");
+    const modal = document.getElementById("clippy-modal");
+    const closeBtn = document.getElementById("clippy-close");
+
+    clippy.addEventListener("click", () => {
+        modal.classList.toggle("show");
+    });
+
+    closeBtn.addEventListener("click", () => {
+        modal.classList.remove("show");
+    });
+
+    const observer = new MutationObserver(() => {
+        const activeTab = document.querySelector('.svelte-tabitem span')?.innerText;
+        const input = document.querySelector('input[type="text"][value="Song Creation Wizard"]');
+        if (input && activeTab && input.value !== activeTab) {
+            input.value = activeTab;
+            input.dispatchEvent(new Event('input', { bubbles: true }));
+        }
+    });
+    observer.observe(document.body, { childList: true, subtree: true });
+    </script>
+    """)
+
+# ✅ MAIN LAUNCHER
+with gr.Blocks(title="Actually Illuminated AI Launcher",
+               theme=gr.themes.Default(primary_hue="slate", secondary_hue="violet"),
+               css="static/style.css") as launcher:
+
+    gr.Markdown("# <center>🎧 Actually Illuminated AI Launcher</center>")
+    gr.Markdown("A complete local music+voice AI studio.")
+
+    with gr.Tabs():
+        with gr.TabItem("🎼 Song Creation Wizard"): song_creation_wizard()
+        with gr.TabItem("🎙️ Voice Profile Manager"): voice_profile_manager_interface()
+        with gr.TabItem("🎹 Voice Timeline Sync"): voice_timeline_sync_interface()
+        with gr.TabItem("🧬 Phoneme Editor"): phoneme_editor_interface()
+        with gr.TabItem("🔊 Playback Emulator"): playback_emulator_interface()
+        with gr.TabItem("🎮 Phoneme Sound Manager"): phoneme_sound_manager_interface()
+        with gr.TabItem("🧠 Memory Core"): memory_core_interface()
+        with gr.TabItem("📜 Subtitles & Timestamps"): subtitle_interface()
+        with gr.TabItem("🎶 Meta-Tag Soundboard"): meta_tag_soundboard_ui()
+        with gr.TabItem("🛠️ Meta-Tag Builder"): user_meta_tag_builder_interface()
+        with gr.TabItem("🎼 Multi-Voice Mixer"): multi_voice_mixer_interface()
+        with gr.TabItem("🎙️ Phoneme Recorder"): phoneme_recorder_interface()
+        with gr.TabItem("🔄 Phoneme Mixer"): phoneme_replacement_interface()
+        with gr.TabItem("🧪 Meta Preview"): meta_tag_preview_ui()
+        with gr.TabItem("🗌 Song Structure Manager"): song_structure_manager_interface()
+        with gr.TabItem("📝 Lyrics Tool"): lyrics_interface()
+        with gr.TabItem("🧠 Benchmark & Stats"): system_performance_tab()
+        with gr.TabItem("✒️ Glyphscribe"): glyphscribe_interface()
+        with gr.TabItem("🤖 GlyphClippy Assistant"): glyphclippy_interface()
+
+    with gr.Accordion("🔍 Meta-Tags & Glyph Overview", open=False):
         with gr.Row():
-            song_name = gr.Textbox(label="Song Name")
-
+            gr.Markdown("### Meta-Tags")
+            gr.Markdown(get_all_meta_tags())
         with gr.Row():
-            song_prompt = gr.Textbox(label="Enter Song Prompt with Meta-Tags", lines=4)
+            gr.Markdown("### Glyphs")
+            glyph_box = gr.Textbox(label="Available Glyphs", interactive=False)
+            glyph_box.value = display_glyphs()
 
-        with gr.Row():
-            voice_profiles = get_available_voice_profiles()
-            selected_voice_profile = gr.Dropdown(choices=voice_profiles, label="Select Voice Profile", interactive=True)
-            voice_profile_display = gr.Textbox(label="Voice Profile Details", interactive=False)
+    floating_glyphclippy_box()
 
-        def load_selected_profile(profile_name):
-            profiles = load_voice_profiles()
-            if profile_name in profiles:
-                p = profiles[profile_name]
-                return f"Phoneme Style: {p['phoneme_style']}\nPitch: {p['pitch']}\nMeta-Tags: {p['meta_tags']}"
-            return "No profile selected or profile not found."
+    launcher.launch(server_name="127.0.0.1", server_port=7861, share=False, inbrowser=True)
 
-        selected_voice_profile.change(load_selected_profile, selected_voice_profile, voice_profile_display)
-
-        with gr.Row():
-            duration = gr.Number(label="Song Duration (seconds)", value=10)
-            quality = gr.Dropdown(choices=["Low", "Medium", "High"], label="Output Quality", value="Medium")
-            use_bark = gr.Checkbox(label="Enable Bark Mode (Experimental)", value=False)
-
-        with gr.Row():
-            model_selector = gr.Dropdown(choices=list_available_models(), value="facebook/musicgen-small", label="Select Music Generation Model")
-            model_status = gr.Textbox(label="Model Status", value="facebook/musicgen-small loaded.", interactive=False)
-
-        with gr.Row():
-            style_tags = gr.Dropdown(choices=get_tags("genres") + get_tags("styles"), multiselect=True, label="Select Style/Genre Tags", interactive=True)
-            voice_tags = gr.Dropdown(choices=get_tags("voices"), multiselect=True, label="Select Vocal/Character Tags", interactive=True)
-            music_sfx_tags = gr.Dropdown(choices=get_tags("instruments") + get_tags("sfx"), multiselect=True, label="Select Music/SFX/Glyph Tags", interactive=True)
-
-        slice_notice = gr.Textbox(label="Frame Slicer Status", interactive=False)
-        generate_button = gr.Button("Generate Song")
-        generated_audio = gr.Audio(label="Generated Song Output", interactive=False)
-
-        def build_and_generate(prompt, duration, quality, use_bark, style, voice, sfx, selected_profile):
-            if not selected_profile:
-                return "No voice profile selected. Please create one in the Voice Profile Manager.", None
-
-            tag_string = " ".join(style + voice + sfx)
-            full_prompt = f"{tag_string}\n{prompt}"
-            recommended_max = recommend_max_frame()
-
-            if duration > recommended_max:
-                eta = estimate_eta(duration, recommended_max)
-                slice_notice.value = f"[⚙️] Auto frame-slicing enabled. ETA: {eta}s."
-                return frame_sliced_generate(full_prompt, duration, quality)
-            else:
-                slice_notice.value = f"[✔] No slicing required. Generating normally."
-                return generate_music(full_prompt, duration, quality)
-
-        generate_button.click(
-            fn=build_and_generate,
-            inputs=[song_prompt, duration, quality, use_bark, style_tags, voice_tags, music_sfx_tags, selected_voice_profile],
-            outputs=generated_audio
-        )
-
-        model_selector.change(fn=switch_music_model, inputs=model_selector, outputs=None)
-        model_selector.change(lambda m: f"{m} loaded.", inputs=model_selector, outputs=model_status)
-
-    return wizard_ui
-
-# ✅ System Performance Tab
-def system_performance_tab():
-    with gr.Blocks() as system_ui:
-        gr.Markdown("## 🖥️ System Performance & Benchmark")
-        system_info = gr.Textbox(label="System Summary", value=system_summary(), interactive=False)
-        benchmark_output = gr.Textbox(label="Benchmark Result", interactive=False)
-        benchmark_button = gr.Button("Run Performance Benchmark")
-
-        benchmark_button.click(fn=benchmark_system_speed, inputs=None, outputs=benchmark_output)
-
-    return system_ui
-
-# Launcher Core
-with gr.Blocks(title="Actually Illuminated AI Launcher", theme=gr.themes.Default(primary_hue="slate", secondary_hue="violet")) as launcher_ui:
-    gr.Markdown("# <center>Actually Illuminated AI - Launcher</center>")
-    gr.Markdown("Navigate between modules and build your sonic glyphscapes!")
-
-    with gr.Accordion("🛠️ Modules (Click to Expand)", open=True):
-        with gr.Row():
-            with gr.Column():
-                with gr.Tabs():
-                    with gr.TabItem("Glyphscribe"):
-                        glyphscribe_interface()
-
-                    with gr.TabItem("Phoneme Editor"):
-                        phoneme_editor_interface()
-
-                    with gr.TabItem("Voice Morpher"):
-                        voice_morpher_interface()
-
-                    with gr.TabItem("Phoneme Sound Manager"):
-                        phoneme_sound_manager_interface()
-
-                    with gr.TabItem("Phoneme Recorder"):
-                        phoneme_recorder_interface()
-
-                    with gr.TabItem("Playback Emulator"):
-                        playback_emulator_interface()
-
-                    with gr.TabItem("Voice Timeline"):
-                        voice_timeline_editor_interface()
-
-                    with gr.TabItem("Voice Timeline Sync"):
-                        voice_timeline_sync_interface()
-
-                    with gr.TabItem("User Meta-Tag Builder"):
-                        user_meta_tag_builder_interface()
-
-                    with gr.TabItem("Subtitle Manager"):
-                        subtitle_interface()
-
-                    with gr.TabItem("Memory Core"):
-                        memory_core_interface()
-
-                    with gr.TabItem("Voice Profile Manager"):
-                        voice_profile_manager_interface()
-
-                    with gr.TabItem("Phoneme Mixer"):
-                        phoneme_replacement_interface()
-
-                    with gr.TabItem("Multi-Voice Mixer"):
-                        multi_voice_mixer_interface()
-
-                    with gr.TabItem("Meta-Tag Soundboard"):
-                        meta_tag_soundboard_ui()
-
-                    with gr.TabItem("Meta-Tag Preview"):
-                        meta_tag_preview_ui()
-
-                    with gr.TabItem("Song Structure Manager"):
-                        song_structure_manager_interface()
-
-                    with gr.TabItem("Lyrics Parser"):
-                        lyrics_interface()
-
-                    with gr.TabItem("Song Creation Wizard"):
-                        song_creation_wizard()
-
-                    with gr.TabItem("System Performance"):
-                        system_performance_tab()
-
-    with gr.Row():
-        gr.Markdown("## 📚 Meta-Tags Reference")
-        gr.Markdown(f"{get_all_meta_tags()}")
-
-    with gr.Row():
-        gr.Markdown("## 🗂️ Glyph Browser")
-        glyph_display = gr.Textbox(label="Available Glyphs", interactive=False)
-        glyph_display.value = display_glyphs()
-
-    with gr.Row():
-        gr.Markdown("## ⚙️ System Status")
-        gr.Markdown("- All Modules Online ✅")
-
-    launcher_ui.launch(server_name="127.0.0.1", server_port=7861, share=False, inbrowser=True)
-
-print("[✔] Actually Illuminated AI Launcher is active in dark mode.")
+print("[✔] Actually Illuminated AI Launcher with GlyphClippy: Now Talking, Thinking, and Scheming.")
