@@ -1,4 +1,4 @@
-# phoneme_and_meta_tag_utils.py (Custom Meta-Tag Persistence)
+# phoneme_and_meta_tag_utils.py (Custom Meta-Tag Persistence + Phoneme Stub)
 
 import re
 import json
@@ -37,3 +37,7 @@ def get_all_meta_tags():
     for category, tags in meta_tags.items():
         tag_summary += f"\n**{category.capitalize()}**: {', '.join(tags)}"
     return tag_summary
+
+# ✅ Basic phoneme generator stub (replace with phonemizer later)
+def text_to_phonemes(text):
+    return " ".join([f"/{char}/" for char in text if char.isalnum()])

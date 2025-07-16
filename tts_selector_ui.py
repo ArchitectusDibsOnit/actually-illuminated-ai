@@ -1,8 +1,7 @@
-# launcher_ui.py (Emotion-Synced Clippy Integrated)
+# launcher_ui.py (Floating GlyphClippy + Tab Access + TTS Selector)
 
 import gradio as gr
 import os
-from glyphclippy_engine import GlyphClippy, get_clippy_image, set_clippy_state
 
 from audio_utils import save_audio, load_audio, normalize_audio, pitch_shift, time_stretch, apply_reverb
 from phoneme_and_meta_tag_utils import get_all_meta_tags, meta_tags, get_tags
@@ -30,12 +29,13 @@ from song_structure_manager import song_structure_manager_interface
 from async_utils import async_wrapper
 from phoneme_editor import phoneme_editor_interface
 from timeline_visualizer import timeline_visualizer_interface
-from glyphscribe import glyphscribe_interface
+from glyphclippy_engine import GlyphClippy
+from tts_selector_ui import clippy_tts_selector_ui
 
 # 💬 GlyphClippy Floating Assistant Panel (for tab view)
 def glyphclippy_interface():
     with gr.Blocks() as clippy_ui:
-        gr.Markdown("### 🤖 GlyphClippy Assistant")
+        gr.Markdown("## 🤖 GlyphClippy Assistant")
 
         with gr.Row():
             clippy_chat_input = gr.Textbox(placeholder="Ask anything about this system...", label="Talk to GlyphClippy")
@@ -53,22 +53,25 @@ def glyphclippy_interface():
         clippy_button.click(handle_chat, clippy_chat_input, [clippy_response_output, clippy_memory_output])
         clear_button.click(lambda: GlyphClippy.clear_memory() or ("Memory cleared.", ""), None, [clippy_response_output, clippy_memory_output])
 
+        gr.Markdown("---")
+        gr.Markdown("### 🔊 TTS + Emotion Controls")
+        clippy_tts_selector_ui()
+
     return clippy_ui
 
 # ✅ Floating GlyphClippy Element Across UI
 def floating_glyphclippy_box():
     with gr.Box(elem_id="glyph-clippy-box"):
         with gr.Column():
-            clippy_image = gr.Image(value=get_clippy_image(), show_label=False, interactive=False)
+            gr.Image(value="assets/glyphclippy_idle.png", show_label=False, interactive=False)
             gr.Markdown("**Need help?**", elem_id="glyph-clippy-text")
-    return clippy_image
 
 # ✅ MAIN LAUNCHER
 with gr.Blocks(title="Actually Illuminated AI Launcher",
                theme=gr.themes.Default(primary_hue="slate", secondary_hue="violet"),
                css="static/style.css") as launcher:
 
-    gr.Markdown("# <center>🎧 Actually Illuminated AI Launcher</center>")
+    gr.Markdown("# <center>🎛️ Actually Illuminated AI Launcher</center>")
     gr.Markdown("A complete local music+voice AI studio.")
 
     with gr.Tabs():
@@ -76,8 +79,8 @@ with gr.Blocks(title="Actually Illuminated AI Launcher",
         with gr.TabItem("🎙️ Voice Profile Manager"): voice_profile_manager_interface()
         with gr.TabItem("🎚️ Voice Timeline Sync"): voice_timeline_sync_interface()
         with gr.TabItem("🧬 Phoneme Editor"): phoneme_editor_interface()
-        with gr.TabItem("🔊 Playback Emulator"): playback_emulator_interface()
-        with gr.TabItem("🎧 Phoneme Sound Manager"): phoneme_sound_manager_interface()
+        with gr.TabItem("🔉 Playback Emulator"): playback_emulator_interface()
+        with gr.TabItem("🎛️ Phoneme Sound Manager"): phoneme_sound_manager_interface()
         with gr.TabItem("🧠 Memory Core"): memory_core_interface()
         with gr.TabItem("📜 Subtitles & Timestamps"): subtitle_interface()
         with gr.TabItem("🎶 Meta-Tag Soundboard"): meta_tag_soundboard_ui()
@@ -89,7 +92,7 @@ with gr.Blocks(title="Actually Illuminated AI Launcher",
         with gr.TabItem("🗺️ Song Structure Manager"): song_structure_manager_interface()
         with gr.TabItem("📝 Lyrics Tool"): lyrics_interface()
         with gr.TabItem("🧠 Benchmark & Stats"): system_performance_tab()
-        with gr.TabItem("✍️ Glyphscribe"): glyphscribe_interface()
+        with gr.TabItem("✒️ Glyphscribe"): glyphscribe_interface()
         with gr.TabItem("📊 Timeline Visualizer"): timeline_visualizer_interface()
         with gr.TabItem("🤖 GlyphClippy Assistant"): glyphclippy_interface()
 
@@ -103,16 +106,8 @@ with gr.Blocks(title="Actually Illuminated AI Launcher",
             glyph_box.value = display_glyphs()
 
     # Add floating assistant across all tabs
-    clippy_img_box = floating_glyphclippy_box()
-
-    # Auto-refresh the Clippy image every few seconds to reflect emotion changes
-    def refresh_clippy():
-        return get_clippy_image()
-
-    clippy_img_box.change(refresh_clippy, None, clippy_img_box)
-
-    launcher.load(refresh_clippy, None, clippy_img_box, every=3)
+    floating_glyphclippy_box()
 
     launcher.launch(server_name="127.0.0.1", server_port=7861, share=False, inbrowser=True)
 
-print("[✔] Actually Illuminated AI Launcher with Emotion-Synced Clippy is running.")
+print("[✔] Actually Illuminated AI Launcher with Floating GlyphClippy + TTS Mode Selector is running.")
