@@ -1,86 +1,64 @@
-# subtitle_manager.py (Emotion Detection + Auto .srt Save + JSON Export)
+# subtitle_ui.py (Emotion Glyph + Phoneme Display UI + Clippy TTS)
 
 import os
-import whisper
-import json
-from subtitle_exporter import export_subtitles
+import gradio as gr
+from subtitle_manager import transcribe_audio, save_subtitles, get_subtitles
+from emotional_phonemizer import analyze_text_for_phonemes_and_emotion, GLYPH_ANIMATIONS
+from clippy_tts import speak_with_emotion
 
-import torch
-from transformers import AutoTokenizer, AutoModelForSequenceClassification
-import numpy as np
 
-try:
-    tokenizer = AutoTokenizer.from_pretrained("cardiffnlp/twitter-roberta-base-emotion")
-    model = AutoModelForSequenceClassification.from_pretrained("cardiffnlp/twitter-roberta-base-emotion")
-    hf_emotion_available = True
-except Exception as e:
-    print("[!] HuggingFace emotion model unavailable, falling back to text2emotion.")
-    import text2emotion as t2e
-    hf_emotion_available = False
+def subtitle_interface():
+    with gr.Blocks() as subtitle_ui:
+        gr.Markdown("## 🎙️ Subtitle Manager + Emotion + Phoneme Magic + Clippy TTS")
 
-whisper_model = whisper.load_model("base")
+        with gr.Row():
+            audio_input = gr.Audio(type="filepath", label="🎧 Upload Audio File")
 
-SUBTITLE_DIR = "subtitles"
-os.makedirs(SUBTITLE_DIR, exist_ok=True)
+        transcribed_output = gr.Textbox(label="📝 Transcribed Subtitles", lines=6)
+        emotion_output = gr.Textbox(label="💥 Dominant Emotion", lines=1, interactive=False)
+        phoneme_output = gr.Textbox(label="🔤 Generated Phonemes", lines=6, interactive=False)
+        tag_output = gr.Textbox(label="🏷️ Detected Meta-Tags", lines=2, interactive=False)
 
-def transcribe_audio(audio_path):
-    """Returns transcribed text and Whisper segments."""
-    result = whisper_model.transcribe(audio_path)
-    return result["text"], result.get("segments", [])
+        with gr.Row():
+            transcribe_button = gr.Button("🧠 Analyze Audio")
+            clear_button = gr.Button("🧹 Clear")
+            save_button = gr.Button("💾 Save Results")
 
-def save_subtitles(text, audio_filename, segments=None):
-    base_name = os.path.splitext(audio_filename)[0]
-    txt_path = os.path.join(SUBTITLE_DIR, f"{base_name}_subtitles.txt")
-    with open(txt_path, "w", encoding="utf-8") as f:
-        f.write(text)
+        def handle_transcription(audio_path):
+            text, segments = transcribe_audio(audio_path)
+            emotion_counts = {}
+            all_phonemes = []
+            all_tags = set()
 
-    if segments:
-        timeline_log = convert_segments_to_srt_format(segments)
-        export_subtitles(text, timeline_log, base_name, format="srt")
-        json_path = os.path.join(SUBTITLE_DIR, f"{base_name}_segments.json")
-        with open(json_path, "w", encoding="utf-8") as jf:
-            json.dump(timeline_log, jf, indent=2)
+            for seg in segments:
+                enriched = analyze_text_for_phonemes_and_emotion(seg['text'])
+                seg['emotion'] = enriched['emotion']
+                seg['glyph'] = GLYPH_ANIMATIONS.get(enriched['glyph'], enriched['glyph'])
+                seg['phonemes'] = enriched['phonemes']
+                seg['tags'] = enriched['tags']
 
-def get_subtitles(audio_filename):
-    base_name = os.path.splitext(audio_filename)[0]
-    subtitle_path = os.path.join(SUBTITLE_DIR, f"{base_name}_subtitles.txt")
-    if os.path.exists(subtitle_path):
-        with open(subtitle_path, "r", encoding="utf-8") as f:
-            return f.read()
-    return ""
+                all_phonemes.append(f"[{seg['glyph']}] {enriched['phonemes']}")
+                all_tags.update(enriched['tags'])
+                emotion_counts[enriched['emotion']] = emotion_counts.get(enriched['emotion'], 0) + 1
 
-def auto_generate_phonemes(text, text_to_phonemes_func):
-    return text_to_phonemes_func(text)
+                # 🎤 Let Clippy speak with emotion!
+                speak_with_emotion(seg['text'], enriched['emotion'])
 
-def convert_segments_to_srt_format(segments, voice="Default"):
-    """Converts Whisper segments to a subtitle_exporter-compatible format."""
-    timeline_log = []
-    for seg in segments:
-        emotion = detect_emotion(seg["text"])
-        timeline_log.append({
-            "start_time": seg["start"],
-            "end_time": seg["end"],
-            "voice": voice,
-            "lyrics": seg["text"],
-            "emotion": emotion
-        })
-    return timeline_log
+            dominant = max(emotion_counts.items(), key=lambda x: x[1])[0]
+            glyph = GLYPH_ANIMATIONS.get(GLYPH_ANIMATIONS.get(dominant, '😐'), '😐')
 
-def detect_emotion(text):
-    text = text.strip()
-    if not text:
-        return "Neutral"
+            return text, f"{glyph} {dominant}", "\n".join(all_phonemes), ", ".join(sorted(all_tags))
 
-    if hf_emotion_available:
-        inputs = tokenizer(text, return_tensors="pt", truncation=True)
-        with torch.no_grad():
-            logits = model(**inputs).logits
-        probs = torch.nn.functional.softmax(logits, dim=1)[0]
-        emotion_id = torch.argmax(probs).item()
-        label = model.config.id2label[emotion_id]
-        return label.capitalize()
-    else:
-        emo_dict = t2e.get_emotion(text)
-        if emo_dict:
-            return max(emo_dict, key=emo_dict.get)
-        return "Neutral"
+        def handle_clear():
+            return "", "", "", ""
+
+        def handle_save(audio_path, text):
+            audio_name = os.path.basename(audio_path)
+            save_subtitles(text, audio_name)
+            return f"✅ Subtitles saved for: {audio_name}"
+
+        transcribe_button.click(handle_transcription, audio_input, [transcribed_output, emotion_output, phoneme_output, tag_output])
+        clear_button.click(handle_clear, None, [transcribed_output, emotion_output, phoneme_output, tag_output])
+        save_button.click(handle_save, [audio_input, transcribed_output], None)
+
+    return subtitle_ui

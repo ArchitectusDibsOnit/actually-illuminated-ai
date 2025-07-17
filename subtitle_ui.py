@@ -1,59 +1,52 @@
-# subtitle_ui.py (with Emotion Glyph Display)
+# subtitle_ui.py
 
 import os
-import gradio as gr
-from subtitle_manager import transcribe_audio, save_subtitles, get_subtitles, auto_generate_phonemes
-from phoneme_and_meta_tag_utils import text_to_phonemes
+import json
+import tkinter as tk
+from tkinter import ttk
+from clippy_voice_engine import speak
+from emotional_phonemizer import text_to_phonemes
+from emotion_engine import detect_emotion
 
-emotion_glyphs = {
-    "Happy": "😊",
-    "Sad": "😢",
-    "Angry": "😠",
-    "Surprise": "😲",
-    "Fear": "😨",
-    "Disgust": "🤢",
-    "Neutral": "😐"
-}
+class SubtitleUI:
+    def __init__(self, root):
+        self.root = root
+        self.root.title("GlyphClippy Subtitle Interface")
 
-def subtitle_interface():
-    with gr.Blocks() as subtitle_ui:
-        gr.Markdown("## 📝 Subtitle Manager + Phoneme Generator + Emotion Tags")
+        self.frame = ttk.Frame(root, padding="10")
+        self.frame.grid(row=0, column=0, sticky=(tk.W, tk.E, tk.N, tk.S))
 
-        with gr.Row():
-            audio_input = gr.Audio(type="filepath", label="Upload Audio File")
+        self.subtitle_text = tk.StringVar()
+        self.emotion_label = tk.StringVar(value="Emotion: Neutral")
+        self.voice_feedback = tk.StringVar(value="TTS: Ready")
 
-        transcribed_output = gr.Textbox(label="Transcribed Subtitles", lines=6)
-        emotion_output = gr.Textbox(label="Detected Emotion", lines=1, interactive=False)
-        phoneme_output = gr.Textbox(label="Auto-Generated Phonemes", lines=6, interactive=False)
+        self._build_widgets()
 
-        with gr.Row():
-            transcribe_button = gr.Button("Transcribe Audio")
-            clear_button = gr.Button("Clear")
+    def _build_widgets(self):
+        ttk.Label(self.frame, text="Enter Subtitle:").grid(row=0, column=0, sticky=tk.W)
+        entry = ttk.Entry(self.frame, textvariable=self.subtitle_text, width=60)
+        entry.grid(row=1, column=0, columnspan=3, sticky=(tk.W, tk.E))
+        entry.bind('<Return>', self.process_subtitle)
 
-        with gr.Row():
-            save_button = gr.Button("Save Subtitles and Phonemes")
+        ttk.Button(self.frame, text="Speak", command=self.process_subtitle).grid(row=2, column=0, sticky=tk.W)
+        ttk.Label(self.frame, textvariable=self.emotion_label).grid(row=2, column=1, sticky=tk.W)
+        ttk.Label(self.frame, textvariable=self.voice_feedback).grid(row=2, column=2, sticky=tk.E)
 
-        def handle_transcription(audio_path):
-            text, segments = transcribe_audio(audio_path)
-            all_emotions = [seg.get("emotion", "Neutral") for seg in segments]
-            most_common = max(set(all_emotions), key=all_emotions.count)
-            glyph = emotion_glyphs.get(most_common, "😐")
-            return text, f"{glyph} {most_common}"
+    def process_subtitle(self, *args):
+        subtitle = self.subtitle_text.get().strip()
+        if not subtitle:
+            self.voice_feedback.set("TTS: No input provided.")
+            return
 
-        def handle_clear():
-            return "", "", ""
+        emotion = detect_emotion(subtitle)
+        phonemes = text_to_phonemes(subtitle)
 
-        def handle_save(audio_path, text):
-            audio_name = os.path.basename(audio_path)
-            save_subtitles(text, audio_name)
-            return f"Subtitles saved for: {audio_name}"
+        self.emotion_label.set(f"Emotion: {emotion.capitalize()}")
+        result = speak(subtitle, emotion=emotion)
+        self.voice_feedback.set(result)
 
-        def handle_phonemes(text):
-            return auto_generate_phonemes(text, text_to_phonemes)
 
-        transcribe_button.click(handle_transcription, audio_input, [transcribed_output, emotion_output])
-        transcribe_button.click(handle_phonemes, transcribed_output, phoneme_output)
-        clear_button.click(handle_clear, None, [transcribed_output, emotion_output, phoneme_output])
-        save_button.click(handle_save, [audio_input, transcribed_output], None)
-
-    return subtitle_ui
+if __name__ == "__main__":
+    root = tk.Tk()
+    app = SubtitleUI(root)
+    root.mainloop()

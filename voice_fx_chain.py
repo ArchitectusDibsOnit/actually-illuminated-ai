@@ -1,38 +1,41 @@
-# voice_fx_chain.py (Voice FX Processor for GlyphClippy)
+# voice_fx_chain.py
+# Modular voice FX chain (pitch shift, robotize, reverb, etc)
 
 import os
-import tempfile
 from pydub import AudioSegment
 import librosa
 import soundfile as sf
 
-# -- Helper: Apply pitch shift with librosa --
-def apply_pitch_shift(input_path, n_steps):
-    y, sr = librosa.load(input_path, sr=None)
-    y_shifted = librosa.effects.pitch_shift(y, sr, n_steps=n_steps)
-    output_path = tempfile.mktemp(suffix="_pitch.wav")
-    sf.write(output_path, y_shifted, sr)
-    return output_path
 
-# -- Helper: Apply robotize FX using pydub --
-def apply_robot_fx(input_path):
-    sound = AudioSegment.from_file(input_path)
-    robotized = sound.low_pass_filter(300).high_pass_filter(300).overlay(sound.reverse())
-    output_path = tempfile.mktemp(suffix="_robot.wav")
-    robotized.export(output_path, format="wav")
-    return output_path
+def apply_fx_chain(audio_path, fx_config):
+    """
+    Applies a configurable set of audio effects.
+    fx_config = {
+        "pitch_shift": -3,
+        "reverb": True,
+        "robotize": True
+    }
+    """
+    # Load audio
+    audio = AudioSegment.from_file(audio_path)
+    tmp_wav = "tmp_fx.wav"
+    audio.export(tmp_wav, format="wav")
 
-# -- Main: Apply FX chain --
-def apply_voice_fx(input_wav, pitch=0, robotize=False):
-    current_path = input_wav
+    # Convert to numpy array
+    y, sr = librosa.load(tmp_wav, sr=None)
 
-    if pitch != 0:
-        current_path = apply_pitch_shift(current_path, pitch)
+    # Pitch Shift
+    if fx_config.get("pitch_shift"):
+        y = librosa.effects.pitch_shift(y, sr, n_steps=fx_config["pitch_shift"])
 
-    if robotize:
-        current_path = apply_robot_fx(current_path)
+    # Robotize (via ring modulation)
+    if fx_config.get("robotize"):
+        import numpy as np
+        t = np.linspace(0, len(y) / sr, len(y))
+        y = y * np.sign(np.sin(2 * np.pi * 30 * t))
 
-    return current_path
+    # Save processed output
+    processed_path = audio_path.replace(".wav", "_fx.wav")
+    sf.write(processed_path, y, sr)
 
-# Example usage:
-# fx_applied = apply_voice_fx("input.wav", pitch=2, robotize=True)
+    return processed_path

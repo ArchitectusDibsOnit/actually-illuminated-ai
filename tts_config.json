@@ -1,0 +1,9 @@
+{
+    "tts_engine": "elevenlabs",
+    "elevenlabs_api_key": "sk_8b1d94f8992d69cc3c8b78998ed6127984f24ee695df3270",
+    "elevenlabs_voice_id": "default",
+    "fallback_engine": "espeak",
+    "enable_bark": true,
+    "enable_tortoise": true,
+    "glyph_tts_mode": "lightweight"
+}
