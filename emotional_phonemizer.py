@@ -1,68 +1,54 @@
-# emotional_phonemizer.py
+# emotional_phonemizer.py (Updated to use meta_tag_manager)
 
 import re
-import random
+from meta_tag_manager import detect_tags
 
-# Glyphs mapped to simplified emotion buckets
+# Simulated phoneme and emotion mappings
+EMOTION_KEYWORDS = {
+    "happy": ["joy", "glad", "cheerful"],
+    "sad": ["sorrow", "down", "blue"],
+    "angry": ["mad", "furious", "rage"],
+    "calm": ["peace", "relaxed", "serene"],
+}
+
+PHONEME_DICT = {
+    "hello": "HH AH0 L OW1",
+    "world": "W ER1 L D",
+    "joy": "JH OY1",
+    "sorrow": "S AO1 R OW0",
+    # ... more as needed
+}
+
 GLYPH_ANIMATIONS = {
-    "neutral": "😐",
     "happy": "😄",
-    "angry": "😠",
     "sad": "😢",
-    "surprised": "😲",
-    "excited": "🤩",
+    "angry": "😠",
     "calm": "😌",
-    "confused": "😕",
-    "scared": "😱",
-    "loving": "😍",
+    # fallback glyph
+    "neutral": "😐",
 }
-
-# Mock emotion lexicon (can be replaced with ML model or API call)
-EMOTION_LEXICON = {
-    "love": "loving",
-    "hate": "angry",
-    "joy": "happy",
-    "happy": "happy",
-    "sad": "sad",
-    "cry": "sad",
-    "angry": "angry",
-    "fear": "scared",
-    "wow": "surprised",
-    "yay": "excited",
-    "calm": "calm",
-    "peace": "calm",
-    "confused": "confused",
-}
-
-META_TAGS = [
-    "#epic", "#lofi", "#trap", "#rock", "#pop", "#metal", "#emotional", "#cinematic", "#dark", "#uplifting",
-    "#synthwave", "#dystopian", "#dreamy", "#orchestral", "#ambient", "#spokenword"
-]
-
-def detect_emotion(text):
-    words = re.findall(r"\w+", text.lower())
-    emotions = [EMOTION_LEXICON.get(word) for word in words if word in EMOTION_LEXICON]
-    return emotions[0] if emotions else "neutral"
-
-def generate_phonemes(text):
-    return "-".join(list(text.lower()))
-
-def detect_tags(text):
-    tags_found = [tag for tag in META_TAGS if tag[1:] in text.lower() or tag in text.lower()]
-    return tags_found
 
 def analyze_text_for_phonemes_and_emotion(text):
-    emotion = detect_emotion(text)
-    phonemes = generate_phonemes(text)
-    tags = detect_tags(text)
-    return {
-        "emotion": emotion,
-        "glyph": GLYPH_ANIMATIONS.get(emotion, "😐"),
-        "phonemes": phonemes,
-        "tags": tags
-    }
+    words = re.findall(r"\w+", text.lower())
+    phonemes = []
+    emotion_score = {k: 0 for k in EMOTION_KEYWORDS}
 
-if __name__ == "__main__":
-    sample = "I feel so much joy and peace in this moment. #ambient"
-    enriched = analyze_text_for_phonemes_and_emotion(sample)
-    print(enriched)
+    for word in words:
+        ph = PHONEME_DICT.get(word, "")
+        if ph:
+            phonemes.append(ph)
+
+        for emo, keywords in EMOTION_KEYWORDS.items():
+            if word in keywords:
+                emotion_score[emo] += 1
+
+    dominant_emotion = max(emotion_score, key=emotion_score.get)
+    dominant_glyph = GLYPH_ANIMATIONS.get(dominant_emotion, GLYPH_ANIMATIONS["neutral"])
+    detected_tags = detect_tags(text)
+
+    return {
+        "phonemes": " ".join(phonemes),
+        "emotion": dominant_emotion,
+        "glyph": dominant_glyph,
+        "tags": detected_tags
+    }

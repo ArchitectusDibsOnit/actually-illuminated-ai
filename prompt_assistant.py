@@ -1,23 +1,60 @@
-# prompt_assistant.py
+# prompt_assistant.py (Expanded with Preset Styles + Guided Description Mode + Tag Expansion)
 
-from metatag_model import generate_tags_from_text
+import gradio as gr
+from meta_tag_manager import detect_tags, get_all_known_tags
 
-PROMPT_TEMPLATES = {
-    "song": "Write lyrics for a {genre} song with {mood} mood and theme of '{topic}'.",
-    "script": "Draft a short script in the {genre} style, centered around '{topic}' and evoking a {mood} feeling.",
-    "story": "Write a {genre} story about '{topic}', with an overall {mood} tone."
+# Example preset style tag combos
+PRESET_STYLES = {
+    "Epic Cinematic": ["[cinematic]", "[epic]", "[orchestral]"],
+    "Dark Trap": ["[trap]", "[dark]", "[808-heavy]"],
+    "Hyperpop Chaos": ["[hyperpop]", "[distorted]", "[maximalist]"],
+    "Lo-fi Chill": ["[lofi]", "[chill]", "[ambient]"],
+    "Anime Opening": ["[anime]", "[upbeat]", "[jpop]"],
 }
 
-def suggest_prompt_from_idea(idea_text):
-    tags = generate_tags_from_text(idea_text)
-    genre = next((tag for tag in tags if tag in KNOWN_GENRES), "experimental")
-    mood = next((tag for tag in tags if tag in MOOD_TAGS), "mysterious")
-    topic = idea_text.strip()
-    prompt_type = "song" if any(tag in idea_text.lower() for tag in ["sing", "lyrics", "music"]) else "story"
-    
-    template = PROMPT_TEMPLATES[prompt_type]
-    return template.format(genre=genre, mood=mood, topic=topic)
+def suggest_prompt_from_idea(idea):
+    tags = detect_tags(idea)
+    return " ".join(tags)
 
-# Example constants (can be loaded from meta config)
-KNOWN_GENRES = ["hip hop", "synthwave", "folk", "metal", "pop", "orchestral", "jazz"]
-MOOD_TAGS = ["happy", "sad", "angry", "dreamy", "epic", "mysterious"]
+def get_preset_styles():
+    return list(PRESET_STYLES.keys())
+
+def apply_preset_style(style_name):
+    return " ".join(PRESET_STYLES.get(style_name, []))
+
+def guided_tag_wizard(description):
+    tags = detect_tags(description)
+    lower_desc = description.lower()
+    if "sad" in lower_desc:
+        tags.append("[sad]")
+    if "fast" in lower_desc or "upbeat" in lower_desc:
+        tags.append("[fast-tempo]")
+    if "dark" in lower_desc:
+        tags.append("[dark]")
+    if "emotional" in lower_desc:
+        tags.append("[emotional]")
+    return " ".join(sorted(set(tags)))
+
+def tag_browser():
+    return " ".join(sorted(get_all_known_tags()))
+
+with gr.Blocks() as prompt_ui:
+    gr.Markdown("## ✨ Prompt Assistant with Presets, Guided Tags, and Tag Browser")
+
+    with gr.Row():
+        style_dropdown = gr.Dropdown(label="🎨 Preset Style", choices=get_preset_styles())
+        style_tags_output = gr.Textbox(label="🎯 Tags from Preset", interactive=False)
+        style_button = gr.Button("🎬 Apply Style")
+
+    with gr.Row():
+        guided_input = gr.Textbox(label="🧠 Describe Your Idea (1 sentence)")
+        guided_tags_output = gr.Textbox(label="🔖 Generated Tags", interactive=False)
+        guided_button = gr.Button("🧪 Generate Tags from Description")
+
+    with gr.Row():
+        all_tags_display = gr.Textbox(label="📚 All Known Meta-Tags", interactive=False, lines=5)
+        tag_browser_button = gr.Button("🔍 Show All Tags")
+
+    style_button.click(apply_preset_style, inputs=style_dropdown, outputs=style_tags_output)
+    guided_button.click(guided_tag_wizard, inputs=guided_input, outputs=guided_tags_output)
+    tag_browser_button.click(tag_browser, outputs=all_tags_display)
